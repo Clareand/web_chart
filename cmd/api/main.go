@@ -8,9 +8,15 @@ import (
 	"net/http"
 	"os"
 
+	jwtConfig "github.com/Clareand/web-chart/config/jwt"
+
 	authHandler "github.com/Clareand/web-chart/pkg/auth/handler"
 	authRepo "github.com/Clareand/web-chart/pkg/auth/repository"
 	authUsecase "github.com/Clareand/web-chart/pkg/auth/usecase"
+
+	productHandler "github.com/Clareand/web-chart/pkg/product/handler"
+	productRepo "github.com/Clareand/web-chart/pkg/product/repository"
+	productUsecase "github.com/Clareand/web-chart/pkg/product/usecase"
 
 	configRedis "github.com/Clareand/web-chart/config/redis"
 
@@ -38,6 +44,7 @@ func main() {
 
 	dbConn := postgresql.CreateConnection()
 	redisConn := configRedis.CreateConnection()
+	authMiddleware := middleware.JWTWithConfig(jwtConfig.JWTConfig())
 
 	logrus.AddHook(&apmlogrus.Hook{
 		LogLevels: []logrus.Level{
@@ -71,6 +78,10 @@ func main() {
 	authRepo := authRepo.NewLoginRepo(dbConn, redisConn)
 	authUsecase := authUsecase.NewLoginRepo(authRepo)
 	authHandler.NewHTTPHandler(authUsecase).Mount(apiV1)
+
+	productRepo := productRepo.NewProductRepo(dbConn)
+	productUsecase := productUsecase.NewProductUsecase(productRepo)
+	productHandler.NewHTTPHandler(productUsecase).Mount(apiV1, authMiddleware, dbConn)
 
 	err := r.Start(":" + os.Getenv("PORT"))
 	if err != nil {
